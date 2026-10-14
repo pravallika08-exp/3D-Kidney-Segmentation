@@ -40,3 +40,5 @@ data/processed/
 # Extra generated visualizations not needed in the repository
 data/real/case02_pair00_threshold01.png
 data/real/case02_pair00_visualization.png
+
+data/real/project_figures/case02_pair00_prediction_v2.png

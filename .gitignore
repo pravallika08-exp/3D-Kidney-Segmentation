@@ -1,0 +1,42 @@
+﻿# Python environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor and operating system files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Medical image data and patches
+*.npy
+*.nii
+*.nii.gz
+*.nrrd
+*.npz
+
+# Trained model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+
+# Downloaded datasets and archives
+data/real/download/
+*.tar
+*.zip
+data/real/kits23_train.jsonl
+
+# Old duplicate scripts and backups
+our_projectdir/baseline_backup/
+
+# Older processed outputs
+data/processed/
+
+# Extra generated visualizations not needed in the repository
+data/real/case02_pair00_threshold01.png
+data/real/case02_pair00_visualization.png

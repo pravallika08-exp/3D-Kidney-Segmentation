@@ -1,0 +1,10 @@
+V2 final evaluation on held-out case00002
+Number of test pairs: 10
+Prediction threshold: 0.5
+Mean dice: 0.8400
+Mean iou: 0.7294
+Mean precision: 0.7479
+Mean recall: 0.9668
+Mean specificity: 0.9548
+
+Note: pairs from one held-out patient are not independent patients.

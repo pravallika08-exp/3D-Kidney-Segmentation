@@ -1,0 +1,15 @@
+Baseline versus V2: held-out case00002
+Number of test patches: 10
+Prediction threshold: 0.5
+
+Mean metrics across patches:
+dice: baseline=0.2758, V2=0.8400, change=+0.5643
+iou: baseline=0.1667, V2=0.7294, change=+0.5627
+precision: baseline=0.3365, V2=0.7479, change=+0.4114
+recall: baseline=0.2550, V2=0.9668, change=+0.7118
+specificity: baseline=0.9072, V2=0.9548, change=+0.0476
+
+Limitations:
+- All test patches are from one held-out patient.
+- Patch-level results do not establish patient-level generalization.
+- This is a comparison of our two models, not the official MASS model.

@@ -1,0 +1,21 @@
+V2 validation threshold analysis
+Training pair folder: data\real\training_reference_query_v2
+Total pairs: 50
+Validation pairs: 10
+Random split seed: 42
+
+Threshold results (mean metrics across validation pairs):
+threshold=0.30: dice=0.7977, iou=0.6860, precision=0.6937, recall=0.9878, specificity=0.9261
+threshold=0.40: dice=0.8427, iou=0.7478, precision=0.7654, recall=0.9752, specificity=0.9523
+threshold=0.50: dice=0.8718, iou=0.7887, precision=0.8225, recall=0.9569, specificity=0.9691
+threshold=0.60: dice=0.8851, iou=0.8064, precision=0.8654, recall=0.9299, specificity=0.9797
+threshold=0.70: dice=0.8842, iou=0.8015, precision=0.8993, recall=0.8898, specificity=0.9871
+
+Highest validation mean Dice threshold: 0.60
+Highest validation mean Dice: 0.8851
+
+Important limitations:
+- This is a pair-level validation split, not patient-level validation.
+- The chosen threshold must be treated as a candidate, not proof of improvement.
+- Do not select a threshold using the held-out case00002 test results.
+- The model checkpoint was not retrained or modified.

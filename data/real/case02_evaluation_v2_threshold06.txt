@@ -1,0 +1,15 @@
+V2 evaluation on held-out case00002
+Number of test pairs: 10
+Prediction threshold: 0.60
+
+Mean dice: 0.8680
+Mean iou: 0.7712
+Mean precision: 0.8056
+Mean recall: 0.9473
+Mean specificity: 0.9686
+
+Important limitations:
+- All test patches are from one held-out patient.
+- These are patch-level results, not patient-level generalization results.
+- The model checkpoint was not retrained or modified.
+- Threshold 0.60 was selected using validation data.

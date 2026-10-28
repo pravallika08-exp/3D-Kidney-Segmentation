@@ -1,0 +1,35 @@
+V2 validation: 6-neighbour post-processing
+Total pairs: 50
+Validation pairs: 10
+Random split seed: 42
+Prediction threshold: 0.60
+
+Mean metrics across validation pairs:
+
+Method: raw
+Mean dice: 0.8851
+Mean iou: 0.8064
+Mean precision: 0.8654
+Mean recall: 0.9299
+Mean specificity: 0.9797
+
+Method: largest_component_6conn
+Mean dice: 0.9085
+Mean iou: 0.8361
+Mean precision: 0.8965
+Mean recall: 0.9299
+Mean specificity: 0.9851
+
+Change (6-connected minus raw):
+dice: +0.0234
+iou: +0.0297
+precision: +0.0311
+recall: +0.0000
+specificity: +0.0053
+
+Limitations:
+- This is a pair-level validation split, not patient-level validation.
+- Strict connectivity may split a kidney mask into separate components.
+- Validation improvement alone does not prove better generalization.
+- Held-out case00002 was not used in this experiment.
+- The existing model checkpoint was not modified.

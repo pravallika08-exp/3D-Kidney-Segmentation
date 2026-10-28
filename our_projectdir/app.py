@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 import torch
+from scipy import ndimage
 
-# Make the model module importable on local and cloud deployments.
+# Make the model module importable locally and in deployment.
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent
 
@@ -18,7 +19,7 @@ from mass_model_v2 import MASSStyleModelV2
 
 
 # --------------------------------------------------
-# App configuration
+# Configuration
 # --------------------------------------------------
 
 st.set_page_config(
@@ -42,10 +43,11 @@ CHECKPOINT = (
 )
 
 DEVICE = torch.device("cpu")
+PREDICTION_THRESHOLD = 0.60
 
 
 # --------------------------------------------------
-# Load the trained model
+# Model loading
 # --------------------------------------------------
 
 @st.cache_resource
@@ -74,47 +76,46 @@ def load_model():
 
     model.load_state_dict(state)
     model.eval()
-
     return model
 
 
 # --------------------------------------------------
-# Read and validate uploaded patches
+# Input validation
 # --------------------------------------------------
 
 def read_patch(upload, label, binary=False):
     if upload is None:
         return None
 
-    arr = np.load(upload, allow_pickle=False)
-    arr = np.asarray(arr)
+    array = np.load(upload, allow_pickle=False)
+    array = np.asarray(array)
 
-    # Accept either (64,64,64) or (1,64,64,64).
-    if arr.shape == (1, 64, 64, 64):
-        arr = arr[0]
+    if array.shape == (1, 64, 64, 64):
+        array = array[0]
 
-    if arr.shape != (64, 64, 64):
+    if array.shape != (64, 64, 64):
         raise ValueError(
-            f"{label} must have shape (64,64,64). "
-            f"Received: {arr.shape}"
+            f"{label} must have shape (64,64,64); "
+            f"received {array.shape}."
         )
 
-    if not np.isfinite(arr).all():
+    if not np.isfinite(array).all():
         raise ValueError(
             f"{label} contains NaN or infinite values."
         )
 
-    if binary and not np.isin(arr, [0, 1]).all():
+    if binary and not np.isin(array, [0, 1]).all():
         raise ValueError(
             f"{label} must contain only binary values 0 and 1."
         )
 
-    return arr.astype(np.float32)
+    return array.astype(np.float32)
 
 
-def to_tensor(arr):
+def to_tensor(array):
     return (
-        torch.from_numpy(arr.copy())
+        torch.from_numpy(array.copy())
+        .float()
         .unsqueeze(0)
         .unsqueeze(0)
         .to(DEVICE)
@@ -122,34 +123,74 @@ def to_tensor(arr):
 
 
 # --------------------------------------------------
-# Upload fields
+# Final 3D post-processing
 # --------------------------------------------------
 
-st.subheader("Upload 3D patches")
+def keep_largest_component(mask):
+    # Matches the 26-neighbour connectivity tested previously.
+    structure = ndimage.generate_binary_structure(3, 3)
+    labels, count = ndimage.label(
+        np.asarray(mask, dtype=bool),
+        structure=structure,
+    )
 
-ref_file = st.file_uploader(
-    "1. Reference CT patch (.npy)",
-    type=["npy"],
-    key="reference_ct",
-)
+    if count == 0:
+        return np.zeros_like(mask, dtype=np.uint8)
 
-mask_file = st.file_uploader(
-    "2. Reference kidney mask (.npy)",
-    type=["npy"],
-    key="reference_mask",
-)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
 
-query_file = st.file_uploader(
-    "3. Query CT patch (.npy)",
-    type=["npy"],
-    key="query_ct",
-)
+    largest_label = int(sizes.argmax())
+    return (labels == largest_label).astype(np.uint8)
 
-target_file = st.file_uploader(
-    "Optional: query ground-truth kidney mask (.npy)",
-    type=["npy"],
-    key="target_mask",
-)
+
+def calculate_metrics(prediction, target):
+    prediction = np.asarray(prediction, dtype=bool)
+    target = np.asarray(target, dtype=bool)
+
+    tp = np.logical_and(prediction, target).sum()
+    fp = np.logical_and(prediction, ~target).sum()
+    fn = np.logical_and(~prediction, target).sum()
+
+    dice = 2 * tp / max(2 * tp + fp + fn, 1)
+    iou = tp / max(tp + fp + fn, 1)
+
+    return float(dice), float(iou)
+
+
+# --------------------------------------------------
+# Upload interface
+# --------------------------------------------------
+
+st.subheader("Upload preprocessed 3D patches")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    reference_file = st.file_uploader(
+        "1. Reference CT patch (.npy)",
+        type=["npy"],
+        key="reference_ct",
+    )
+
+    reference_mask_file = st.file_uploader(
+        "2. Reference kidney mask (.npy)",
+        type=["npy"],
+        key="reference_mask",
+    )
+
+with col2:
+    query_file = st.file_uploader(
+        "3. Query CT patch (.npy)",
+        type=["npy"],
+        key="query_ct",
+    )
+
+    target_file = st.file_uploader(
+        "Optional: query ground-truth mask (.npy)",
+        type=["npy"],
+        key="target_mask",
+    )
 
 slice_index = st.slider(
     "CT slice to display",
@@ -158,30 +199,38 @@ slice_index = st.slider(
     value=32,
 )
 
+st.info(
+    "Final candidate pipeline: V2 model → threshold 0.60 "
+    "→ largest connected 3D component."
+)
 
 # --------------------------------------------------
-# Predict
+# Run prediction
 # --------------------------------------------------
 
 if st.button("Predict kidney mask", type="primary"):
 
-    if ref_file is None or mask_file is None or query_file is None:
+    if (
+        reference_file is None
+        or reference_mask_file is None
+        or query_file is None
+    ):
         st.error("Please upload all three required patches.")
 
     else:
         try:
-            ref = read_patch(
-                ref_file,
+            reference_image = read_patch(
+                reference_file,
                 "Reference CT",
             )
 
-            ref_mask = read_patch(
-                mask_file,
+            reference_mask = read_patch(
+                reference_mask_file,
                 "Reference kidney mask",
                 binary=True,
             )
 
-            query = read_patch(
+            query_image = read_patch(
                 query_file,
                 "Query CT",
             )
@@ -193,9 +242,9 @@ if st.button("Predict kidney mask", type="primary"):
 
                 with torch.inference_mode():
                     logits = model(
-                        to_tensor(ref),
-                        to_tensor(ref_mask),
-                        to_tensor(query),
+                        to_tensor(reference_image),
+                        to_tensor(reference_mask),
+                        to_tensor(query_image),
                     )
 
                     probabilities = (
@@ -204,22 +253,24 @@ if st.button("Predict kidney mask", type="primary"):
                         .numpy()
                     )
 
-                    prediction = (
-                        probabilities >= 0.5
-                    ).astype(np.uint8)
+            raw_prediction = (
+                probabilities >= PREDICTION_THRESHOLD
+            ).astype(np.uint8)
 
-            st.success("Prediction completed successfully.")
+            prediction = keep_largest_component(raw_prediction)
+
+            st.success("Final prediction completed.")
 
             st.write(
-                "Predicted foreground fraction: "
+                f"Threshold: {PREDICTION_THRESHOLD:.2f}"
+                f" | Raw foreground fraction: "
+                f"{raw_prediction.mean():.4f}"
+                f" | Final foreground fraction: "
                 f"{prediction.mean():.4f}"
             )
 
-            # ------------------------------------------
-            # Build display images without Matplotlib
-            # ------------------------------------------
-
-            ct_slice = query[slice_index]
+            # Prepare the selected CT slice for display.
+            ct_slice = query_image[slice_index]
 
             low, high = np.percentile(
                 ct_slice,
@@ -235,7 +286,7 @@ if st.button("Predict kidney mask", type="primary"):
                 255,
             ).astype(np.uint8)
 
-            pred_slice = prediction[slice_index]
+            prediction_slice = prediction[slice_index] > 0
 
             overlay = np.repeat(
                 ct_uint8[:, :, None],
@@ -243,60 +294,49 @@ if st.button("Predict kidney mask", type="primary"):
                 axis=2,
             )
 
-            foreground = pred_slice.astype(bool)
-            red = np.array(
-                [255, 40, 40],
-                dtype=np.float32,
-            )
-
-            overlay[foreground] = (
-                0.55 * overlay[foreground]
+            red = np.array([255, 40, 40], dtype=np.float32)
+            overlay[prediction_slice] = (
+                0.55 * overlay[prediction_slice]
                 + 0.45 * red
             ).astype(np.uint8)
 
-            st.subheader("Prediction visualization")
+            st.subheader("Final segmentation")
 
-            col1, col2, col3 = st.columns(3)
+            image_col, mask_col, overlay_col = st.columns(3)
 
-            with col1:
+            with image_col:
                 st.image(
                     ct_uint8,
                     caption="Query CT",
                     use_container_width=True,
                 )
 
-            with col2:
+            with mask_col:
                 st.image(
-                    pred_slice * 255,
-                    caption="Predicted kidney mask",
+                    prediction[slice_index] * 255,
+                    caption="Final kidney mask",
                     use_container_width=True,
                 )
 
-            with col3:
+            with overlay_col:
                 st.image(
                     overlay,
-                    caption="Prediction overlay",
+                    caption="CT with final mask overlay",
                     use_container_width=True,
                 )
 
-            # ------------------------------------------
-            # Download predicted mask
-            # ------------------------------------------
-
+            # Download the final, post-processed binary mask.
             output = io.BytesIO()
             np.save(output, prediction)
 
             st.download_button(
-                label="Download predicted mask (.npy)",
+                label="Download final kidney mask (.npy)",
                 data=output.getvalue(),
-                file_name="predicted_kidney_mask.npy",
+                file_name="predicted_kidney_mask_threshold06_filtered.npy",
                 mime="application/octet-stream",
             )
 
-            # ------------------------------------------
-            # Optional evaluation against ground truth
-            # ------------------------------------------
-
+            # Optional evaluation, only when matching ground truth is supplied.
             if target_file is not None:
                 target = read_patch(
                     target_file,
@@ -304,57 +344,23 @@ if st.button("Predict kidney mask", type="primary"):
                     binary=True,
                 )
 
-                intersection = np.logical_and(
+                dice, iou = calculate_metrics(
                     prediction,
                     target,
-                ).sum()
-
-                denominator = (
-                    prediction.sum()
-                    + target.sum()
                 )
 
-                dice = (
-                    1.0
-                    if denominator == 0
-                    else 2.0 * intersection / denominator
-                )
-
-                union = np.logical_or(
-                    prediction,
-                    target,
-                ).sum()
-
-                iou = (
-                    1.0
-                    if union == 0
-                    else intersection / union
-                )
-
-                st.subheader(
-                    "Optional patch-level evaluation"
-                )
+                st.subheader("Optional patch-level evaluation")
 
                 metric_col1, metric_col2 = st.columns(2)
 
-                metric_col1.metric(
-                    "Dice",
-                    f"{dice:.4f}",
-                )
-
-                metric_col2.metric(
-                    "IoU",
-                    f"{iou:.4f}",
-                )
+                metric_col1.metric("Dice", f"{dice:.4f}")
+                metric_col2.metric("IoU", f"{iou:.4f}")
 
                 st.caption(
-                    "These metrics are valid only when the "
-                    "ground-truth mask belongs to this exact "
-                    "query patch. They are not clinical "
-                    "performance measurements."
+                    "These metrics are meaningful only if the supplied "
+                    "ground-truth mask corresponds to this exact query "
+                    "patch. They are not clinical performance estimates."
                 )
 
         except Exception as exc:
-            st.error(
-                f"Prediction failed: {exc}"
-            )
+            st.error(f"Prediction failed: {exc}")

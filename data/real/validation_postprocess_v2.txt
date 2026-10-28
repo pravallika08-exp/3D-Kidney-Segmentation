@@ -1,0 +1,27 @@
+V2 validation post-processing comparison
+Validation pairs: 10
+Random split seed: 42
+Prediction threshold: 0.60
+
+Mean metrics across validation pairs:
+
+Method: raw
+Mean dice: 0.8851
+Mean iou: 0.8064
+Mean precision: 0.8654
+Mean recall: 0.9299
+Mean specificity: 0.9797
+
+Method: largest_component
+Mean dice: 0.9085
+Mean iou: 0.8361
+Mean precision: 0.8965
+Mean recall: 0.9299
+Mean specificity: 0.9851
+
+Limitations:
+- Validation uses a pair-level split, not an independent patient-level split.
+- Keeping the largest component can remove true disconnected foreground regions.
+- Results must be checked before deciding whether to use post-processing.
+- The held-out case00002 test data was not used in this comparison.
+- The model checkpoint was not changed.

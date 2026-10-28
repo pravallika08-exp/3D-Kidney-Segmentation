@@ -1,0 +1,32 @@
+V2 post-processing comparison on held-out case00002
+Number of test pairs: 10
+Prediction threshold: 0.60
+
+Mean metrics across test patches:
+
+Method: raw
+Mean dice: 0.8680
+Mean iou: 0.7712
+Mean precision: 0.8056
+Mean recall: 0.9473
+Mean specificity: 0.9686
+
+Method: largest_component
+Mean dice: 0.8975
+Mean iou: 0.8164
+Mean precision: 0.8565
+Mean recall: 0.9473
+Mean specificity: 0.9786
+
+Change from post-processing (filtered minus raw):
+dice: +0.0294
+iou: +0.0452
+precision: +0.0509
+recall: +0.0000
+specificity: +0.0100
+
+Limitations:
+- All test patches are from one held-out patient.
+- The test set was not used to select the threshold or filter.
+- Results are preliminary patch-level measurements.
+- The model checkpoint was not modified.

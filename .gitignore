@@ -42,3 +42,18 @@ data/real/case02_pair00_threshold01.png
 data/real/case02_pair00_visualization.png
 
 data/real/project_figures/case02_pair00_prediction_v2.png
+
+# Local-only research experiments
+/MASS_official/
+/chat.html
+/chat_files/
+/data/real/lesion_model_v1/
+/data/real/lesion_model_v2/
+/data/real/lesion_patch_dataset/
+/data/real/lesion_reference_query_v1/
+/data/real/mass_official_case02*
+/data/real/mass_official_tumour*
+/data/real/mass_finetuned_case02*
+/data/real/mass_tumour_single_multi_comparison.csv
+/data/real/mass_official_tumour_threshold_check.csv
+/step*.py
